@@ -1,0 +1,36 @@
+# Virtual Environments
+.venv/
+.venv*/
+env/
+venv/
+ENV/
+
+# Large Datasets & Processed Media
+dataset/
+*.cache
+
+# Training Run Outputs & Large Model Weights
+runs/
+weights/
+*.pt
+*.onnx
+*.engine
+*.tflite
+
+# Exception: keep models directory structure if needed, but exclude large pt files
+!models/.gitkeep
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# User & OS Environment Files
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# Antigravity & Agent Scratch Directories
+.gemini/

@@ -1,0 +1,17 @@
+# gestures.yaml
+path: dataset
+train: images/train
+val: images/val
+test: images/test
+
+nc: 9
+names:
+  0: fist
+  1: palm
+  2: like
+  3: dislike
+  4: peace
+  5: ok
+  6: call
+  7: stop
+  8: no_gesture
