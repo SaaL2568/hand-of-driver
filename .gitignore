@@ -17,6 +17,9 @@ weights/
 *.engine
 *.tflite
 
+# Runtime Logs
+logs/
+
 # Exception: keep models directory structure if needed, but exclude large pt files
 !models/.gitkeep
 

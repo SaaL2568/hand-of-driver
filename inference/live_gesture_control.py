@@ -1,10 +1,14 @@
 import cv2
 import time
+import csv
+from datetime import datetime
 from pathlib import Path
 from ultralytics import YOLO
 
 MODEL_PATH = Path("models/gesture_yolo11n_best.pt")
+LOG_FILE_PATH = Path("logs/gesture_control_log.csv")
 CONF_THRESHOLD = 0.5
+LOG_INTERVAL_SECONDS = 1.0
 
 GESTURE_COMMAND_MAP = {
     "fist": "START / GO",
@@ -17,6 +21,19 @@ GESTURE_COMMAND_MAP = {
     "stop": "PANIC / EMERGENCY STOP",
     "no_gesture": "SAFE IDLE"
 }
+
+def initializeLogger(logFilePath: Path):
+    logFilePath.parent.mkdir(parents=True, exist_ok=True)
+    if not logFilePath.exists():
+        with open(logFilePath, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Timestamp", "Detected Gesture", "Vehicle Command", "Confidence"])
+
+def logGestureEvent(logFilePath: Path, gestureName: str, command: str, conf: float):
+    timestampStr = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(logFilePath, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([timestampStr, gestureName, command, f"{conf:.4f}"])
 
 def drawOverlay(frame, gestureName, command, conf, fps):
     h, w, _ = frame.shape
@@ -42,6 +59,9 @@ def startLiveGestureControl():
         print(f"Error: Trained model not found at {MODEL_PATH}")
         return
 
+    initializeLogger(LOG_FILE_PATH)
+    print(f"Logging active gestures to {LOG_FILE_PATH} every {LOG_INTERVAL_SECONDS} second(s)...")
+
     print(f"Loading trained gesture model from {MODEL_PATH}...")
     model = YOLO(MODEL_PATH)
     
@@ -55,6 +75,7 @@ def startLiveGestureControl():
     print("Press 'q' or 'ESC' to exit camera window.\n")
 
     prevTime = time.time()
+    lastLogTime = 0.0
 
     while True:
         ret, frame = cap.read()
@@ -91,6 +112,10 @@ def startLiveGestureControl():
                     highestConf = conf
                     activeGesture = gName
                     activeCommand = cmd
+
+        if (currentTime - lastLogTime) >= LOG_INTERVAL_SECONDS:
+            logGestureEvent(LOG_FILE_PATH, activeGesture, activeCommand, highestConf)
+            lastLogTime = currentTime
 
         drawOverlay(frame, activeGesture, activeCommand, highestConf, fps)
         
