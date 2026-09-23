@@ -32,12 +32,12 @@ echo.
 echo === PART A: YOLO11 STATIC GESTURE PIPELINE ===
 echo [1] Prepare Dataset (Download HaGRID from HuggingFace)
 echo [2] Train Model (Fine-tune YOLO11n on 9 gestures)
-echo [3] Run YOLO Live Inference (Webcam -> 9 gesture commands + CSV log)
+echo [3] Run YOLO Live Inference (Webcam -^> 9 gesture commands + CSV log)
 echo.
 echo === PART B: MEDIAPIPE DYNAMIC THUMB + SIMULATOR ===
 echo [4] Launch Simulator + Thumb Controller (Integrated - 2 windows)
 echo [5] Launch Simulator Only (Part B - for keyboard/mock testing)
-echo [6] Launch Thumb Controller Only (Part A - webcam -> UDP)
+echo [6] Launch Thumb Controller Only (Part A - webcam -^> UDP)
 echo [7] Run Mock Sender Tests (Slalom / Panic / Circle / Interactive)
 echo.
 echo [0] Exit
@@ -86,7 +86,7 @@ goto MENU
 
 :THUMB_ONLY
 cd simulator
-start "Thumb Controller Part A" cmd /k ""..\.venv\Scripts\python.exe" mediapipe_thumb_controller.py --model hand_landmarker.task --ip 127.0.0.1 --port 5005 --camera 0"
+start "Thumb Controller Part A" cmd /k ""..\.venv\Scripts\python.exe" mediapipe_thumb_controller.py --model hand_landmarker.task --ip 127.0.0.1 --port 5005 --camera 0 --no-simulator"
 cd ..
 goto MENU
 
