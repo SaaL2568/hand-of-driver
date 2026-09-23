@@ -12,19 +12,25 @@ SMOOTHING_ALPHA = 0.15
 STABLE_FRAMES = 8
 
 
-# ============================================================
-# MEDIAPIPE SETUP
-# ============================================================
+import sys
+from pathlib import Path
 
-BaseOptions = mp.tasks.BaseOptions
-HandLandmarker = mp.tasks.vision.HandLandmarker
-HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
+# Add simulator folder to sys.path if needed to import GestureClient
+sim_dir = Path(__file__).parent.parent / "simulator"
+if sim_dir.exists() and str(sim_dir) not in sys.path:
+    sys.path.insert(0, str(sim_dir))
 
+try:
+    from gesture_client import GestureClient
+    udp_client = GestureClient(target_ip="127.0.0.1", target_port=5005)
+    print("[dynamic_mediapipe_test] UDP Telemetry enabled -> 127.0.0.1:5005")
+except Exception as e:
+    udp_client = None
+    print(f"[dynamic_mediapipe_test] UDP Telemetry disabled: {e}")
 
 options = HandLandmarkerOptions(
     base_options=BaseOptions(
-        model_asset_path=MODEL_PATH
+        model_asset_path=MODEL_PATH if Path(MODEL_PATH).exists() else str(Path(__file__).parent.parent / MODEL_PATH)
     ),
     running_mode=VisionRunningMode.IMAGE,
     num_hands=1,
@@ -334,6 +340,28 @@ with HandLandmarker.create_from_options(options) as landmarker:
             2
         )
 
+
+        # ====================================================
+        # UDP TELEMETRY BROADCAST TO SIMULATOR
+        # ====================================================
+
+        if udp_client:
+            steer_val = 0.0
+            thr_val = 0.0
+            brk_val = 0.0
+            panic_val = False
+            
+            val_norm = min(1.0, max(0.0, intensity / 100.0))
+            if direction == "LEFT":
+                steer_val = -val_norm
+            elif direction == "RIGHT":
+                steer_val = val_norm
+            elif direction == "UP":
+                thr_val = val_norm
+            elif direction == "DOWN":
+                brk_val = val_norm
+
+            udp_client.send(steering_angle=steer_val, throttle=thr_val, brake=brk_val, panic_stop=panic_val)
 
         # ====================================================
         # SHOW WEBCAM
