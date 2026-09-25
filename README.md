@@ -196,19 +196,22 @@ python mock_sender.py --scenario slalom
 
 See `simulator/README.md` for full documentation, network protocol, and keybindings.
 
-## Batch Launchers
+## Unified Launcher (Recommended)
 
-These commands must be run from the repository root:
+A single batch file handles **complete setup + run**:
 
-| File | Purpose |
-|---|---|
-| `prepare_dataset.bat` | Activates `.venv` and prepares the HaGRID dataset |
-| `run_training.bat` | Activates `.venv` and trains the YOLO model |
-| `run_gesture_control.bat` | Activates `.venv` and runs live YOLO inference |
-| `run.bat` | Interactive menu; options 1 to 3 are the supported YOLO workflow |
-| `run_integrated.bat` | In `simulator/` - runs simulator with gesture control integration |
+```powershell
+run_all.bat
+```
 
-Before using the batch files, create `.venv` and install the dependencies as described above. The batch files do not install Python packages automatically.
+This will:
+1. Create `.venv` if missing
+2. Install all Python dependencies (main + simulator)
+3. Present a menu to run: Train, Inference, Simulator, Full Integration, Mock Tests, or Prepare Dataset
+
+## Legacy Batch Files (Removed)
+
+The old individual batch files (`prepare_dataset.bat`, `run.bat`, `run_training.bat`, `run_gesture_control.bat`, `run_mediapipe.bat`, `simulator/run_integrated.bat`) have been consolidated into `run_all.bat`.
 
 ## Repository Layout
 
