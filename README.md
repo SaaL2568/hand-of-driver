@@ -1,183 +1,223 @@
 # Hand Gesture Vehicle Control System
 
-**Final Year Capstone Project** — Two complementary gesture-control pipelines for real-time vehicle command:
+Final-year project for recognising hand gestures from a webcam and mapping them to vehicle commands. The currently implemented and runnable pipeline is the YOLO11 static-gesture pipeline. A MediaPipe prototype is also included, but the simulator integration is not present in this checkout.
 
-| Pipeline | Technology | Control Type | Use Case |
-|----------|------------|--------------|----------|
-| **Part A — Static** | YOLO11n + HaGRID | 9 discrete gestures | Command triggers (start, stop, horn, panic) |
-| **Part B — Dynamic** | MediaPipe Tasks API + Pygame Simulator | Continuous thumb steering + pedals | Analog driving (steer, throttle, brake) |
+## Current Status
 
----
+| Component | Status | Entry point |
+|---|---|---|
+| YOLO11 training | Implemented | `training/train_gesture_model.py` |
+| HaGRID dataset preparation | Implemented | `scripts/prepare_dataset.py` |
+| Live YOLO webcam inference | Implemented | `inference/live_gesture_control.py` |
+| MediaPipe thumb prototype | Experimental and currently incomplete | `inference/dynamic_mediapipe_test.py` |
+| Pygame simulator and UDP client | Not included; `simulator/` is empty | Not available |
 
-## 🎮 Part A: Static Gesture Commands (YOLO11)
+The batch files `run.bat`, `run_mediapipe.bat`, and the simulator options in `run.bat` still reference simulator files that are not present. Use the YOLO commands in this README for the supported workflow.
 
-Fine-tuned **Ultralytics YOLO11 nano** on HaGRID subset (9 classes).
+## Features
 
-| Class ID | Gesture | Vehicle Command | Description |
-|----------|---------|----------------|-------------|
-| `0` | **fist** | `START / GO` | Engine start / vehicle launch |
-| `1` | **palm** | `STOP` | Standard vehicle stop |
-| `2` | **like** | `ACCELERATE` | Increase speed |
-| `3` | **dislike** | `BRAKE` | Decrease speed / apply brakes |
-| `4` | **peace** | `LEFT TURN` | Steer left |
-| `5` | **ok** | `RIGHT TURN` | Steer right |
-| `6` | **call** | `HORN` | Sound vehicle horn |
-| `7` | **stop** | `PANIC / EMERGENCY STOP` | Emergency override |
-| `8` | **no_gesture** | `SAFE IDLE` | Safe default (no command) |
+- Fine-tunes an Ultralytics YOLO11 nano model on nine hand-gesture classes.
+- Reads gesture commands from a webcam in real time.
+- Displays the detected gesture, confidence, FPS, and mapped vehicle action.
+- Logs the active gesture once per second to `logs/gesture_control_log.csv`.
+- Downloads and converts the selected HaGRID subset into YOLO format.
 
-### Part A: Repository Structure
-```
-final-year/
-├── dataset/                      # YOLO-format images & labels (train/val/test)
-├── models/
-│   └── gesture_yolo11n_best.pt   # Fine-tuned checkpoint (20 MB)
-├── scripts/
-│   └── prepare_dataset.py        # HaGRID downloader → YOLO converter
-├── training/
-│   └── train_gesture_model.py    # YOLO11 training (41 epochs, auto OOM fallback)
-├── inference/
-│   ├── live_gesture_control.py   # YOLO webcam inference + CSV logging
-│   └── dynamic_mediapipe_test.py # Original MediaPipe thumb prototype
-├── gestures.yaml                 # YOLO class config (nc=9)
-├── yolo11n.pt                    # Base YOLO11n weights
-└── weights/
-    └── yolo26n.pt                # Alt weights
-```
+## Gesture Mapping
 
-### Part A: Quick Start
+| Class ID | Gesture | Vehicle command |
+|---:|---|---|
+| 0 | `fist` | START / GO |
+| 1 | `palm` | STOP |
+| 2 | `like` | ACCELERATE |
+| 3 | `dislike` | BRAKE |
+| 4 | `peace` | LEFT TURN |
+| 5 | `ok` | RIGHT TURN |
+| 6 | `call` | HORN |
+| 7 | `stop` | PANIC / EMERGENCY STOP |
+| 8 | `no_gesture` | SAFE IDLE |
+
+## Requirements
+
+- Windows 10 or 11.
+- Python 3.10 or 3.11 recommended.
+- A working webcam for live inference.
+- Internet access for Python packages, the base YOLO11 weights, and the HaGRID dataset.
+- Optional NVIDIA GPU with a compatible CUDA/PyTorch installation for faster training. CPU training is possible but considerably slower.
+- Approximately 20 GB or more of free storage for the downloaded dataset, depending on the dataset split and cache.
+
+## Installation
+
+Open PowerShell in the repository root, the directory containing `gestures.yaml`.
+
+### 1. Create and activate the virtual environment
+
 ```powershell
-# 1. Activate venv
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# 2. Prepare dataset (downloads HaGRID from HuggingFace)
-.\.venv\Scripts\python.exe scripts/prepare_dataset.py
-
-# 3. Train model (GPU, 41 epochs, saves to models/gesture_yolo11n_best.pt)
-.\.venv\Scripts\python.exe training/train_gesture_model.py
-
-# 4. Run live YOLO inference (webcam → gesture → vehicle command + CSV log)
-.\.venv\Scripts\python.exe inference/live_gesture_control.py
-```
-**Batch launchers**: `run.bat` (menu), `run_gesture_control.bat`, `run_training.bat`, `prepare_dataset.bat`
-
----
-
-## 🕹️ Part B: Dynamic Thumb Control + 2D Simulator
-
-Continuous analog control using **MediaPipe Hand Landmarker (Tasks API)** → UDP → **Pygame vehicle simulator**.
-
-### Control Mapping
-| Thumb Motion | Vehicle Output |
-|--------------|----------------|
-| Point **LEFT** | Steer left (−1.0 … 0) |
-| Point **RIGHT** | Steer right (0 … +1.0) |
-| Thumb **HIGH** (top of frame) | Throttle (0.0 → 1.0) |
-| Thumb **LOW** (bottom of frame) | Brake (0.0 → 1.0) |
-| Thumb **CENTER** | Coast / idle |
-| Point **DOWN** + very low | **PANIC STOP** (throttle=0, brake=1, panic=true) |
-
-### Part B: Repository Structure
-```
-final-year/simulator/
-├── main.py                        # Pygame simulator (60 FPS, UDP receiver)
-├── network.py                     # UDP JSON receiver + VehicleCommand protocol
-├── gesture_client.py              # UDP sender library (Part A → Part B)
-├── mediapipe_thumb_controller.py  # MediaPipe Tasks API thumb tracker (Part A sender)
-├── hand_gesture_controller.py     # Legacy MediaPipe controller (mp.solutions.hands)
-├── hand_landmarker.task           # MediaPipe model (7.8 MB)
-├── physics.py                     # Bicycle model kinematics
-├── world.py                       # City track, camera, rendering
-├── car.py                         # Vehicle physics + rendering
-├── hud.py                         # Telemetry dashboard (speed, steer, radar, panic)
-├── config.py                      # All tunable parameters
-├── mock_sender.py                 # Test scenarios (slalom, panic, circle, interactive)
-├── test_simulator.py              # Unit tests
-├── requirements.txt               # pygame, opencv, mediapipe>=1.0, numpy<2
-├── run_integrated.bat             # Launches simulator + thumb controller
-└── README.md                      # Simulator-specific docs
 ```
 
-### Network Protocol (UDP JSON, port 5005)
-```json
-{
-  "steeringAngle": -1.0 to 1.0,   // -1=full left, 0=center, +1=full right
-  "throttle": 0.0 to 1.0,         // 0=idle, 1=max acceleration
-  "brake": 0.0 to 1.0,            // 0=released, 1=full brake
-  "panicStop": true/false,        // Emergency cutoff
-  "timestamp": 1726053892.124     // Unix epoch (latency tracking)
-}
-```
+If PowerShell blocks activation for the current user, run PowerShell as your normal user and execute:
 
-### Part B: Quick Start
 ```powershell
-cd simulator
-
-# Option 1: One-click launcher (opens two windows)
-run_integrated.bat
-
-# Option 2: Manual (two terminals)
-# Terminal 1 — Simulator
-venv\Scripts\activate.bat
-python main.py --width 1280 --height 720
-
-# Terminal 2 — Thumb Controller (webcam)
-venv\Scripts\activate.bat
-python mediapipe_thumb_controller.py --model hand_landmarker.task --ip 127.0.0.1 --port 5005 --camera 0
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-**Simulator controls** (keyboard fallback):
-| Key | Action |
-|-----|--------|
-| `W` / `↑` | Throttle |
-| `S` / `↓` | Reverse |
-| `Space` | Brake |
-| `A` / `←` | Steer left |
-| `D` / `→` | Steer right |
-| `P` | Panic stop |
-| `Tab` | Toggle NETWORK ↔ KEYBOARD mode |
-| `R` | Reset car |
-| `Esc` | Quit |
+Then activate the environment again. The scripts can also be run without activation by using `.venv\Scripts\python.exe`.
 
----
+### 2. Install Python dependencies
 
-## 🔧 Environment
+There is no committed `requirements.txt` in the current repository, so install the packages directly:
 
-| Component | Version |
-|-----------|---------|
-| Python | 3.11.9 |
-| PyTorch | 2.5.1 + CUDA 12.1 |
-| Ultralytics | 8.4.138 |
-| OpenCV | 5.0.0 |
-| MediaPipe | 1.0.1 (Tasks API) |
-| Pygame | 2.6.1 |
+```powershell
+python -m pip install --upgrade pip
+python -m pip install ultralytics opencv-python pandas huggingface-hub Pillow mediapipe
+```
 
-**Two virtual environments**:
-- `final-year/.venv/` — YOLO training & inference (PyTorch CUDA)
-- `final-year/simulator/venv/` — Pygame + MediaPipe (no CUDA needed)
+`ultralytics` installs PyTorch as a dependency. For NVIDIA GPU training, install the PyTorch build appropriate for the installed CUDA driver from the official PyTorch selector before installing or upgrading `ultralytics`.
 
----
+### 3. Check the installation
 
-## 🎯 Project Highlights (Novelty)
+```powershell
+python -c "import cv2, mediapipe, pandas, PIL, ultralytics; print('Dependencies OK')"
+```
 
-1. **Hybrid discrete + continuous control** — YOLO classifies *what* command (start/stop/horn); MediaPipe thumb tracks *how much* (steering angle, throttle depth).
-2. **Safety arbitration** — Panic gestures override continuous control; dead-man idle on hand loss; confidence-gated commands.
-3. **UDP decoupled architecture** — Vision (Part A) and physics (Part B) run in separate processes; testable via `mock_sender.py` without camera.
-4. **Laptop-camera optimised** — Low detection thresholds (0.3), high-res capture (1280×720), visual zone overlays, aggressive smoothing.
-5. **Full evaluation suite** — YOLO per-class mAP@50/50-95, simulator packet-rate/latency HUD, automated slalom/panic test scenarios.
+## Quick Start: Live Inference
 
----
+Live inference requires a trained checkpoint at `models/gesture_yolo11n_best.pt`.
 
-## 📹 Demo Checklist
+```powershell
+.\.venv\Scripts\Activate.ps1
+python inference\live_gesture_control.py
+```
 
-- [ ] YOLO model trained (`models/gesture_yolo11n_best.pt` exists)
-- [ ] `live_gesture_control.py` runs, detects 9 gestures, logs CSV
-- [ ] Simulator opens, shows city track + HUD
-- [ ] Thumb controller opens webcam, shows zone overlays
-- [ ] UDP packets flow: thumb movement → simulator steering/throttle/brake
-- [ ] Panic gesture triggers red banner + emergency physics
-- [ ] Mock sender slalom test passes (validates protocol independently)
+The webcam window opens on camera device `0`. Press `q` or `Esc` to exit. The script creates the `logs` directory automatically and writes detections to:
 
----
+```text
+logs/gesture_control_log.csv
+```
 
-## 📄 License
-Academic capstone project. MediaPipe model subject to Google's [MediaPipe Terms](https://developers.google.com/mediapipe/terms). HaGRID dataset subject to [HuggingFace license](https://huggingface.co/datasets/ntsrigaud/hagrid-subset).
+The confidence threshold is currently `0.5`. The camera must be available to the Python process; close other applications that may be using it if capture fails.
+
+## Training Workflow
+
+Run these steps from the repository root.
+
+### 1. Prepare the dataset
+
+The preparation script downloads `ntsrigaud/hagrid-subset` from Hugging Face, keeps the nine classes above, and writes YOLO images and labels into `dataset/`.
+
+Unauthenticated downloads:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python scripts\prepare_dataset.py
+```
+
+For higher Hugging Face download limits, create a Hugging Face access token and set it only in the current PowerShell session:
+
+```powershell
+$env:HF_TOKEN = "hf_your_token_here"
+python scripts\prepare_dataset.py
+```
+
+Expected output directories:
+
+```text
+dataset/
+├── images/
+│   ├── train/
+│   ├── val/
+│   └── test/
+└── labels/
+    ├── train/
+    ├── val/
+    └── test/
+```
+
+### 2. Train and validate YOLO11
+
+```powershell
+python training\train_gesture_model.py
+```
+
+The script uses `yolo11n.pt`, trains for 41 epochs at image size 640, validates on the validation split, and retries with batch size 8 if CUDA or GPU memory fails at batch size 16.
+
+Generated files include:
+
+```text
+runs/detect/gestureModelV1/weights/best.pt
+models/gesture_yolo11n_best.pt
+```
+
+The copied file in `models/` is the checkpoint used by live inference. Training outputs and model weights are ignored by Git, so keep a backup if the trained model must be shared.
+
+### 3. Run the trained model
+
+```powershell
+python inference\live_gesture_control.py
+```
+
+## Batch Launchers
+
+These commands must be run from the repository root:
+
+| File | Purpose |
+|---|---|
+| `prepare_dataset.bat` | Activates `.venv` and prepares the HaGRID dataset |
+| `run_training.bat` | Activates `.venv` and trains the YOLO model |
+| `run_gesture_control.bat` | Activates `.venv` and runs live YOLO inference |
+| `run.bat` | Interactive menu; options 1 to 3 are the supported YOLO workflow |
+
+Before using the batch files, create `.venv` and install the dependencies as described above. The batch files do not install Python packages automatically.
+
+## Repository Layout
+
+```text
+hand-of-driver/
+├── gestures.yaml                   # YOLO dataset paths and nine class names
+├── hand_landmarker.task             # MediaPipe model asset for the prototype
+├── inference/
+│   ├── live_gesture_control.py      # Supported YOLO webcam inference
+│   └── dynamic_mediapipe_test.py    # Experimental MediaPipe prototype
+├── scripts/
+│   └── prepare_dataset.py           # Hugging Face download and YOLO conversion
+├── training/
+│   └── train_gesture_model.py       # YOLO11 training and validation
+├── simulator/                       # Empty in the current checkout
+├── prepare_dataset.bat
+├── run.bat
+├── run_gesture_control.bat
+├── run_mediapipe.bat                # References unavailable simulator code
+├── run_training.bat
+└── README.md
+```
+
+## MediaPipe Prototype
+
+`inference/dynamic_mediapipe_test.py` contains an experimental thumb-direction prototype using `hand_landmarker.task`. It displays direction, action, and intensity, and includes unfinished UDP telemetry hooks. It should not be treated as a supported end-to-end feature because its required MediaPipe task imports and UDP simulator client are not currently wired into the repository, and the `simulator/` directory has no implementation.
+
+## Troubleshooting
+
+**`Trained model not found`**
+
+Run dataset preparation and training first. Live inference only loads `models/gesture_yolo11n_best.pt` and does not train automatically.
+
+**`Dataset not found` or missing images**
+
+Run `python scripts\prepare_dataset.py` from the repository root. Check that the internet connection is available and that `HF_TOKEN` is set if Hugging Face rate limits the request.
+
+**Webcam cannot be opened**
+
+Close applications using the camera, check Windows camera permissions, and verify that camera device `0` is correct.
+
+**CUDA out of memory**
+
+The training script retries with batch size 8. If that still fails, run with a CPU-only PyTorch installation or reduce the batch size in `training/train_gesture_model.py`.
+
+**Simulator launcher errors**
+
+The simulator files are not present in this checkout. Use the YOLO pipeline commands above; the simulator launch options cannot work until those files are added.
+
+## Data and Model Licenses
+
+This is an academic capstone project. The HaGRID subset is distributed through [Hugging Face](https://huggingface.co/datasets/ntsrigaud/hagrid-subset) and is subject to its dataset license. The MediaPipe model is subject to Google's [MediaPipe Terms](https://developers.google.com/mediapipe/terms).
