@@ -10,9 +10,9 @@ Final-year project for recognising hand gestures from a webcam and mapping them 
 | HaGRID dataset preparation | Implemented | `scripts/prepare_dataset.py` |
 | Live YOLO webcam inference | Implemented | `inference/live_gesture_control.py` |
 | MediaPipe thumb prototype | Experimental and currently incomplete | `inference/dynamic_mediapipe_test.py` |
-| Pygame simulator and UDP client | Not included; `simulator/` is empty | Not available |
+| Pygame simulator and UDP client | Implemented | `simulator/main.py` |
 
-The batch files `run.bat`, `run_mediapipe.bat`, and the simulator options in `run.bat` still reference simulator files that are not present. Use the YOLO commands in this README for the supported workflow.
+The batch files `run.bat`, `run_mediapipe.bat`, and the simulator options in `run.bat` now work with the included simulator files in `simulator/`. Use the YOLO commands in this README for the supported workflow, or the simulator commands for end-to-end testing.
 
 ## Features
 
@@ -157,6 +157,45 @@ The copied file in `models/` is the checkpoint used by live inference. Training 
 python inference\live_gesture_control.py
 ```
 
+## Simulator Quick Start
+
+The simulator is a standalone Pygame application in the `simulator/` directory that receives UDP gesture commands and renders a 2D vehicle simulation.
+
+### 1. Install simulator dependencies
+```powershell
+cd simulator
+pip install -r requirements.txt
+```
+
+### 2. Run the simulator (keyboard fallback mode)
+```powershell
+python main.py
+```
+- Uses WASD/Arrow keys for control
+- Press `TAB` to toggle between keyboard and network input modes
+
+### 3. Run with live gesture control (end-to-end)
+**Terminal 1** - Start simulator:
+```powershell
+cd simulator
+python main.py
+```
+
+**Terminal 2** - Start YOLO gesture inference:
+```powershell
+cd ..
+.\.venv\Scripts\Activate.ps1
+python inference\live_gesture_control.py
+```
+
+**Terminal 3** (optional) - Test with mock sender:
+```powershell
+cd simulator
+python mock_sender.py --scenario slalom
+```
+
+See `simulator/README.md` for full documentation, network protocol, and keybindings.
+
 ## Batch Launchers
 
 These commands must be run from the repository root:
@@ -167,6 +206,7 @@ These commands must be run from the repository root:
 | `run_training.bat` | Activates `.venv` and trains the YOLO model |
 | `run_gesture_control.bat` | Activates `.venv` and runs live YOLO inference |
 | `run.bat` | Interactive menu; options 1 to 3 are the supported YOLO workflow |
+| `run_integrated.bat` | In `simulator/` - runs simulator with gesture control integration |
 
 Before using the batch files, create `.venv` and install the dependencies as described above. The batch files do not install Python packages automatically.
 
@@ -183,7 +223,7 @@ hand-of-driver/
 │   └── prepare_dataset.py           # Hugging Face download and YOLO conversion
 ├── training/
 │   └── train_gesture_model.py       # YOLO11 training and validation
-├── simulator/                       # Empty in the current checkout
+├── simulator/                       # Pygame simulator with UDP client (see simulator/README.md)
 ├── prepare_dataset.bat
 ├── run.bat
 ├── run_gesture_control.bat
@@ -194,7 +234,7 @@ hand-of-driver/
 
 ## MediaPipe Prototype
 
-`inference/dynamic_mediapipe_test.py` contains an experimental thumb-direction prototype using `hand_landmarker.task`. It displays direction, action, and intensity, and includes unfinished UDP telemetry hooks. It should not be treated as a supported end-to-end feature because its required MediaPipe task imports and UDP simulator client are not currently wired into the repository, and the `simulator/` directory has no implementation.
+`inference/dynamic_mediapipe_test.py` contains an experimental thumb-direction prototype using `hand_landmarker.task`. It displays direction, action, and intensity, and includes UDP telemetry hooks for the simulator. The simulator is now included in `simulator/` with a UDP client (`gesture_client.py`) that can receive commands from this prototype.
 
 ## Troubleshooting
 
@@ -216,7 +256,15 @@ The training script retries with batch size 8. If that still fails, run with a C
 
 **Simulator launcher errors**
 
-The simulator files are not present in this checkout. Use the YOLO pipeline commands above; the simulator launch options cannot work until those files are added.
+Ensure you have installed simulator dependencies:
+```powershell
+cd simulator
+pip install -r requirements.txt
+```
+Then run from the simulator directory:
+```powershell
+python main.py
+```
 
 ## Data and Model Licenses
 
