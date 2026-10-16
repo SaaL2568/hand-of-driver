@@ -1,6 +1,6 @@
 # Hand Gesture Vehicle Control System
 
-Final-year project for recognising hand gestures from a webcam and mapping them to vehicle commands. The currently implemented and runnable pipeline is the YOLO11 static-gesture pipeline. A MediaPipe prototype is also included, but the simulator integration is not present in this checkout.
+Final-year project for driving a simulated vehicle with hand gestures from a webcam. One controller fuses MediaPipe hand tracking (continuous steering, throttle and brake) with a fine-tuned YOLO11-nano model (discrete commands: emergency stop, gear, horn) and streams everything over UDP to a Pygame vehicle simulator.
 
 ## Current Status
 
@@ -9,10 +9,11 @@ Final-year project for recognising hand gestures from a webcam and mapping them 
 | YOLO11 training | Implemented | `training/train_gesture_model.py` |
 | HaGRID dataset preparation | Implemented | `scripts/prepare_dataset.py` |
 | Live YOLO webcam inference | Implemented | `inference/live_gesture_control.py` |
-| MediaPipe thumb prototype | Experimental and currently incomplete | `inference/dynamic_mediapipe_test.py` |
-| Pygame simulator and UDP client | Implemented | `simulator/main.py` |
+| **Integrated gesture controller (MediaPipe + YOLO)** | **Implemented - main entry point** | `simulator/mediapipe_thumb_controller.py` |
+| Pygame simulator and UDP receiver | Implemented | `simulator/main.py` |
+| First MediaPipe prototype (one channel at a time) | Superseded by the integrated controller | `inference/dynamic_mediapipe_test.py` |
 
-The batch files `run.bat`, `run_mediapipe.bat`, and the simulator options in `run.bat` now work with the included simulator files in `simulator/`. Use the YOLO commands in this README for the supported workflow, or the simulator commands for end-to-end testing.
+The easiest way to run everything is `run_all.bat` (see [Unified Launcher](#unified-launcher-recommended)).
 
 ## Features
 
@@ -24,17 +25,19 @@ The batch files `run.bat`, `run_mediapipe.bat`, and the simulator options in `ru
 
 ## Gesture Mapping
 
-| Class ID | Gesture | Vehicle command |
-|---:|---|---|
-| 0 | `fist` | START / GO |
-| 1 | `palm` | STOP |
-| 2 | `like` | ACCELERATE |
-| 3 | `dislike` | BRAKE |
-| 4 | `peace` | LEFT TURN |
-| 5 | `ok` | RIGHT TURN |
-| 6 | `call` | HORN |
-| 7 | `stop` | PANIC / EMERGENCY STOP |
-| 8 | `no_gesture` | SAFE IDLE |
+| Class ID | Gesture | Standalone YOLO app label | Integrated controller |
+|---:|---|---|---|
+| 0 | `fist` | START / GO | - |
+| 1 | `palm` | STOP | EMERGENCY STOP (while held) |
+| 2 | `like` | ACCELERATE | Driving pose (MediaPipe control) |
+| 3 | `dislike` | BRAKE | - |
+| 4 | `peace` | LEFT TURN | Toggle gear D / R |
+| 5 | `ok` | RIGHT TURN | - |
+| 6 | `call` | HORN | HORN (while held) |
+| 7 | `stop` | PANIC / EMERGENCY STOP | EMERGENCY STOP (while held) |
+| 8 | `no_gesture` | SAFE IDLE | - |
+
+In the integrated controller a command fires only when YOLO's label **and** MediaPipe's finger pattern agree over several frames. Driving comes from MediaPipe alone: **thumb tilt = steering, hand height = throttle / brake** (both at once). New users get a 20-second calibration on first run.
 
 ## Requirements
 
@@ -66,14 +69,15 @@ Then activate the environment again. The scripts can also be run without activat
 
 ### 2. Install Python dependencies
 
-There is no committed `requirements.txt` in the current repository, so install the packages directly:
+Install PyTorch first (CUDA 12.1 build for NVIDIA GPUs; leave out `--index-url` for the CPU build), then the pinned project requirements:
 
 ```powershell
 python -m pip install --upgrade pip
-python -m pip install ultralytics opencv-python pandas huggingface-hub Pillow mediapipe
+python -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+python -m pip install -r requirements.txt
 ```
 
-`ultralytics` installs PyTorch as a dependency. For NVIDIA GPU training, install the PyTorch build appropriate for the installed CUDA driver from the official PyTorch selector before installing or upgrading `ultralytics`.
+`run_all.bat` does all of this automatically.
 
 ### 3. Check the installation
 
@@ -149,7 +153,7 @@ runs/detect/gestureModelV1/weights/best.pt
 models/gesture_yolo11n_best.pt
 ```
 
-The copied file in `models/` is the checkpoint used by live inference. Training outputs and model weights are ignored by Git, so keep a backup if the trained model must be shared.
+The copied file in `models/` is the checkpoint used by live inference and the integrated controller. It is committed to the repository (21 MB), so a fresh clone works without retraining; other training outputs and weights are ignored by Git.
 
 ### 3. Run the trained model
 
@@ -159,40 +163,29 @@ python inference\live_gesture_control.py
 
 ## Simulator Quick Start
 
-The simulator is a standalone Pygame application in the `simulator/` directory that receives UDP gesture commands and renders a 2D vehicle simulation.
+The simulator is a Pygame application in `simulator/` that receives UDP control packets and renders a 2D vehicle simulation. Use the project `.venv` for everything (it has YOLO/PyTorch installed).
 
-### 1. Install simulator dependencies
+### 1. Run the full system (end-to-end)
+```powershell
+.\.venv\Scripts\python.exe simulator\mediapipe_thumb_controller.py --user yourname
+```
+The controller opens the simulator by itself; closing either window closes both. Keys in the camera window: `Q`/`Esc` quit, `C` recalibrate, `P` save a camera + simulator screenshot pair. Use `--no-simulator` to run the controller alone, `--two-hands` to steer with one hand and gesture with the other.
+
+### 2. Run the simulator alone (keyboard fallback mode)
 ```powershell
 cd simulator
-pip install -r requirements.txt
+..\.venv\Scripts\python.exe main.py
 ```
-
-### 2. Run the simulator (keyboard fallback mode)
-```powershell
-python main.py
-```
-- Uses WASD/Arrow keys for control
+- WASD/Arrow keys to drive, `S` reverse, `Space` brake, `P` panic
 - Press `TAB` to toggle between keyboard and network input modes
 
-### 3. Run with live gesture control (end-to-end)
-**Terminal 1** - Start simulator:
+### 3. Test the simulator with the mock sender
 ```powershell
 cd simulator
-python main.py
+..\.venv\Scripts\python.exe mock_sender.py --scenario slalom
 ```
 
-**Terminal 2** - Start YOLO gesture inference:
-```powershell
-cd ..
-.\.venv\Scripts\Activate.ps1
-python inference\live_gesture_control.py
-```
-
-**Terminal 3** (optional) - Test with mock sender:
-```powershell
-cd simulator
-python mock_sender.py --scenario slalom
-```
+Note: `inference\live_gesture_control.py` is the standalone YOLO demo; it only displays and logs gestures and does **not** drive the simulator.
 
 See `simulator/README.md` for full documentation, network protocol, and keybindings.
 
@@ -206,8 +199,8 @@ run_all.bat
 
 This will:
 1. Create `.venv` if missing
-2. Install all Python dependencies (main + simulator)
-3. Present a menu to run: Train, Inference, Simulator, Full Integration, Mock Tests, or Prepare Dataset
+2. Install PyTorch (CUDA build if possible) and `requirements.txt`
+3. Present a menu: **[1] Full System (controller + simulator)**, YOLO demo, Simulator only, Mock tests, Train, or Prepare Dataset
 
 ## Legacy Batch Files (Removed)
 
@@ -226,18 +219,23 @@ hand-of-driver/
 │   └── prepare_dataset.py           # Hugging Face download and YOLO conversion
 ├── training/
 │   └── train_gesture_model.py       # YOLO11 training and validation
-├── simulator/                       # Pygame simulator with UDP client (see simulator/README.md)
-├── prepare_dataset.bat
-├── run.bat
-├── run_gesture_control.bat
-├── run_mediapipe.bat                # References unavailable simulator code
-├── run_training.bat
+├── models/
+│   └── gesture_yolo11n_best.pt      # Trained YOLO11n gesture model (committed)
+├── simulator/
+│   ├── mediapipe_thumb_controller.py  # MAIN ENTRY: integrated MediaPipe + YOLO controller
+│   ├── gesture_commands.py          # YOLO worker + command fusion / voting
+│   ├── calibration.py               # Per-user calibration profiles
+│   ├── main.py                      # Pygame simulator (UDP receiver)
+│   └── ...                          # physics, HUD, network, tests (see simulator/README.md)
+├── report_screenshots/              # Report / appendix figures
+├── requirements.txt                 # Pinned project dependencies
+├── run_all.bat                      # Unified setup + run launcher
 └── README.md
 ```
 
-## MediaPipe Prototype
+## MediaPipe Prototype (first iteration)
 
-`inference/dynamic_mediapipe_test.py` contains an experimental thumb-direction prototype using `hand_landmarker.task`. It displays direction, action, and intensity, and includes UDP telemetry hooks for the simulator. The simulator is now included in `simulator/` with a UDP client (`gesture_client.py`) that can receive commands from this prototype.
+`inference/dynamic_mediapipe_test.py` is the first thumb-direction prototype. It classifies the thumb as left/right/up/down and drives only one channel at a time, which is why it was replaced by `simulator/mediapipe_thumb_controller.py`. It is kept for reference.
 
 ## Troubleshooting
 
@@ -257,16 +255,16 @@ Close applications using the camera, check Windows camera permissions, and verif
 
 The training script retries with batch size 8. If that still fails, run with a CPU-only PyTorch installation or reduce the batch size in `training/train_gesture_model.py`.
 
-**Simulator launcher errors**
+**Gear / horn gestures do nothing**
 
-Ensure you have installed simulator dependencies:
+The camera window's top-right panel must show a `YOLO` label (not `YOLO off`). YOLO needs the project `.venv`; the controller restarts itself in `.venv` automatically if it was started with another Python. The panel also shows MediaPipe's finger pattern and the vote counts, and each session writes `logs/gesture_session_<date>_<time>.csv`.
+
+**Simulator errors**
+
+Run the simulator with the project environment from the `simulator` folder:
 ```powershell
 cd simulator
-pip install -r requirements.txt
-```
-Then run from the simulator directory:
-```powershell
-python main.py
+..\.venv\Scripts\python.exe main.py
 ```
 
 ## Data and Model Licenses

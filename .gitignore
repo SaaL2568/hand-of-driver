@@ -22,6 +22,8 @@ logs/
 
 # Exception: keep models directory structure if needed, but exclude large pt files
 !models/.gitkeep
+# The trained gesture model is needed at runtime (YOLO commands), so it is committed (21 MB)
+!models/gesture_yolo11n_best.pt
 
 # Python Bytecode & Cache
 __pycache__/

@@ -1,0 +1,20 @@
+# Full project environment (dataset prep, YOLO training, integrated controller + simulator).
+# Versions are the ones the project was built and tested with (Python 3.11.9).
+#
+# PyTorch with CUDA 12.1 (NVIDIA GPU) - install first:
+#   pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+# Then:
+#   pip install -r requirements.txt
+# (Without the CUDA step, pip installs the CPU build of PyTorch; everything still works, YOLO is just slower.)
+
+torch==2.5.1
+torchvision==0.20.1
+ultralytics==8.4.138
+mediapipe==1.0.1
+opencv-python==5.0.0.93
+pygame==2.6.1
+numpy==2.4.6
+pandas==3.0.5
+pillow==12.3.0
+pyarrow==25.0.1
+huggingface_hub==1.30.0
