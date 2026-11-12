@@ -20,8 +20,11 @@ weights/
 # Runtime Logs
 logs/
 
-# Exception: keep models directory structure if needed, but exclude large pt files
-!models/.gitkeep
+# Screenshot pairs from the P key (camera + simulator) land directly in report_screenshots/;
+# curated figures live in report_screenshots/appendix_A/ and stay tracked
+report_screenshots/*.png
+report_screenshots/*.jpg
+
 # The trained gesture model is needed at runtime (YOLO commands), so it is committed (21 MB)
 !models/gesture_yolo11n_best.pt
 
@@ -37,6 +40,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Antigravity & Agent Scratch Directories
+# Editors, Antigravity & Agent Scratch Directories
+.vscode/
+.idea/
 .gemini/
+.claude/
+
+# Per-user calibration profiles (personal, recreated by the 20 s calibration)
 simulator/calibration_profiles/
